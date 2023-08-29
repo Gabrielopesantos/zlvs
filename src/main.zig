@@ -27,7 +27,11 @@ fn read_connection_sock_msg(socket_fd: os.socket_t, allocator: std.mem.Allocator
     }
 
     var req = inner_http.request{};
-    _ = try req.parse_request(msg_buf);
+    req.parse_request(msg_buf) catch |err| {
+        logger.debug("Failed to parse incoming request: {}", .{err});
+        return;
+    };
+    logger.info("{s} | Method: {s} | Path: {s}", .{ req.http_version, @tagName(req.method), req.path });
 }
 
 fn srv_listen(srv_sockaddr: *std.net.Address) !std.os.socket_t {

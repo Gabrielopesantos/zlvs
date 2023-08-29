@@ -4,37 +4,33 @@ const SP = " ";
 const CRLF = "\r\n";
 const NUM_TOKENS_REQUEST = 3;
 
-const http_method = enum { GET, HEAD, INVALID };
+const HttpMethod = enum {
+    INVALID,
+    GET,
+    HEAD,
+
+    fn strToEnum(method: []const u8) @This() {
+        if (std.mem.eql(u8, method, "GET")) return .GET;
+        if (std.mem.eql(u8, method, "HEAD")) return .HEAD;
+
+        return .INVALID;
+    }
+};
+
+const ParseError = error{InvalidMessageFormat};
 
 pub const request = struct {
-    method: http_method = http_method.INVALID,
+    method: HttpMethod = HttpMethod.INVALID,
     path: []const u8 = undefined,
     http_version: []const u8 = undefined,
 
     pub fn parse_request(self: *@This(), line: []const u8) !void {
-        _ = self;
-        var tokens: [NUM_TOKENS_REQUEST][]const u8 = undefined;
-        var curr_token: u8 = 0;
-        var line_pos: u32 = 0;
-        _ = line_pos;
+        var components = std.mem.tokenize(u8, line, CRLF);
+        var req_line = components.next() orelse return ParseError.InvalidMessageFormat;
+        var tokens = std.mem.tokenize(u8, req_line, SP);
 
-        while (curr_token != NUM_TOKENS_REQUEST) : (curr_token += 1) {
-            for (line, 0..) |char, index| {
-                switch (char) {
-                    SP => {
-                        tokens[curr_token] = line[0..index];
-                    },
-                    '\r' => {
-                        break;
-                    },
-                    else => {
-                        continue;
-                    },
-                }
-            }
-
-            std.debug.print("Parsing request\n", .{});
-            std.debug.print("Line: {s}\n", .{line});
-        }
+        self.method = HttpMethod.strToEnum(tokens.next() orelse return ParseError.InvalidMessageFormat);
+        self.path = tokens.next() orelse return ParseError.InvalidMessageFormat;
+        self.http_version = tokens.next() orelse return ParseError.InvalidMessageFormat;
     }
 };
