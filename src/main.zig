@@ -1,15 +1,17 @@
 const std = @import("std");
 const os = std.os;
+const http = std.http;
 
 const logger = std.log.scoped(.zlvs_main);
+const inner_http = @import("http.zig");
 
 var log_level: std.log.Level = .info;
 
 fn read_connection_sock_msg(socket_fd: os.socket_t, allocator: std.mem.Allocator) void {
     defer os.closeSocket(socket_fd);
-    var msg_buf = allocator.alloc(u8, 256) catch |err| switch (err) {
+    const msg_buf = allocator.alloc(u8, 256) catch |err| switch (err) {
         else => {
-            std.debug.print("Could not allocate buffer: {}\n", .{err});
+            logger.err("Could not allocate buffer: {}\n", .{err});
             return;
         },
     };
@@ -19,9 +21,13 @@ fn read_connection_sock_msg(socket_fd: os.socket_t, allocator: std.mem.Allocator
     if (bytes_read) |value| {
         logger.debug("Successfuly read {d} bytes", .{value});
         logger.debug("Message: '{s}'", .{msg_buf[0..value]});
-    } else |err| switch (err) {
-        else => std.debug.print("Got an error: {}\n", .{err}),
+    } else |err| {
+        logger.err("Error reading from socket: {}", .{err});
+        return;
     }
+
+    var req = inner_http.request{};
+    _ = try req.parse_request(msg_buf);
 }
 
 fn srv_listen(srv_sockaddr: *std.net.Address) !std.os.socket_t {
