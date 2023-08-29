@@ -1,13 +1,12 @@
 const std = @import("std");
 const os = std.os;
-const http = std.http;
 
 const logger = std.log.scoped(.zlvs_main);
-const inner_http = @import("http.zig");
+const http = @import("http.zig");
 
 var log_level: std.log.Level = .info;
 
-fn read_connection_sock_msg(socket_fd: os.socket_t, allocator: std.mem.Allocator) void {
+fn handle_connection(socket_fd: os.socket_t, allocator: std.mem.Allocator) void {
     defer os.closeSocket(socket_fd);
     const msg_buf = allocator.alloc(u8, 256) catch |err| switch (err) {
         else => {
@@ -26,12 +25,30 @@ fn read_connection_sock_msg(socket_fd: os.socket_t, allocator: std.mem.Allocator
         return;
     }
 
-    var req = inner_http.request{};
+    var req = http.Request{};
     req.parse_request(msg_buf) catch |err| {
         logger.debug("Failed to parse incoming request: {}", .{err});
         return;
     };
+
     logger.info("{s} | Method: {s} | Path: {s}", .{ req.http_version, @tagName(req.method), req.path });
+
+    var resp = http.Response{};
+    resp.prepare_response(&req) catch |err| {
+        logger.debug("Failed to prepare response: {}", .{err});
+        return;
+    };
+    var resp_buf = resp.to_buf() catch |err| {
+        logger.debug("Failed to prepare response: {}", .{err});
+        return;
+    };
+
+    if (std.os.send(socket_fd, resp_buf, 0)) |bytes_sent| {
+        logger.debug("Sent {d} bytes", .{bytes_sent});
+        // while bytes_sent < msg.len { keep sending
+    } else |err| {
+        logger.err("Error sending data: {}", .{err});
+    }
 }
 
 fn srv_listen(srv_sockaddr: *std.net.Address) !std.os.socket_t {
@@ -73,6 +90,6 @@ pub fn main() !void {
 
     while (true) {
         const conn_socket = try os.accept(socket, &sockaddr.any, &sockaddr_size, os.linux.SOCK.NONBLOCK);
-        _ = try thread_pool.spawn(read_connection_sock_msg, .{ conn_socket, allocator });
+        _ = try thread_pool.spawn(handle_connection, .{ conn_socket, allocator });
     }
 }
