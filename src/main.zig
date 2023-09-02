@@ -3,6 +3,7 @@ const os = std.os;
 
 const logger = std.log.scoped(.zlvs_main);
 const http = @import("http.zig");
+const util = @import("util.zig");
 
 var log_level: std.log.Level = .info;
 
@@ -33,6 +34,11 @@ fn handle_connection(socket_fd: os.socket_t, allocator: std.mem.Allocator) void 
 
     logger.info("{s} | Method: {s} | Path: {s}", .{ req.http_version, @tagName(req.method), req.path });
 
+    _ = util.get_path_file_type(req.path) catch |err| {
+        logger.debug("Failed to file type for the path provided: {}", .{err});
+        return;
+    };
+
     var resp = http.Response{};
     resp.prepare_response(&req) catch |err| {
         logger.debug("Failed to prepare response: {}", .{err});
@@ -43,7 +49,7 @@ fn handle_connection(socket_fd: os.socket_t, allocator: std.mem.Allocator) void 
         return;
     };
 
-    if (std.os.send(socket_fd, resp_buf, 0)) |bytes_sent| {
+    if (os.send(socket_fd, resp_buf, 0)) |bytes_sent| {
         logger.debug("Sent {d} bytes", .{bytes_sent});
         // while bytes_sent < msg.len { keep sending
     } else |err| {
@@ -51,7 +57,7 @@ fn handle_connection(socket_fd: os.socket_t, allocator: std.mem.Allocator) void 
     }
 }
 
-fn srv_listen(srv_sockaddr: *std.net.Address) !std.os.socket_t {
+fn srv_listen(srv_sockaddr: *std.net.Address) !os.socket_t {
     // NOTE: socket_type
     const socket = try os.socket(os.linux.AF.INET, os.linux.SOCK.STREAM, 0);
 
@@ -64,7 +70,7 @@ fn srv_listen(srv_sockaddr: *std.net.Address) !std.os.socket_t {
 }
 
 pub fn main() !void {
-    if (std.mem.eql(u8, std.os.getenv("DEBUG") orelse "", "1")) log_level = .debug;
+    if (std.mem.eql(u8, os.getenv("DEBUG") orelse "", "1")) log_level = .debug;
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();

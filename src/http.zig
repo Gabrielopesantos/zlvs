@@ -1,4 +1,5 @@
 const std = @import("std");
+const mem = std.mem;
 
 const SP = " ";
 const CRLF = "\r\n";
@@ -10,8 +11,8 @@ const HttpMethod = enum {
     HEAD,
 
     fn strToEnum(method: []const u8) @This() {
-        if (std.mem.eql(u8, method, "GET")) return .GET;
-        if (std.mem.eql(u8, method, "HEAD")) return .HEAD;
+        if (mem.eql(u8, method, "GET")) return .GET;
+        if (mem.eql(u8, method, "HEAD")) return .HEAD;
 
         return .INVALID;
     }
@@ -25,9 +26,9 @@ pub const Request = struct {
     http_version: []const u8 = undefined,
 
     pub fn parse_request(self: *@This(), line: []const u8) !void {
-        var components = std.mem.tokenize(u8, line, CRLF);
+        var components = mem.tokenize(u8, line, CRLF);
         var req_line = components.next() orelse return ParseError.InvalidMessageFormat;
-        var tokens = std.mem.tokenize(u8, req_line, SP);
+        var tokens = mem.tokenize(u8, req_line, SP);
 
         self.method = HttpMethod.strToEnum(tokens.next() orelse return ParseError.InvalidMessageFormat);
         self.path = tokens.next() orelse return ParseError.InvalidMessageFormat;
